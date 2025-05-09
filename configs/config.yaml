@@ -2,10 +2,10 @@ data_generator:
   feature_dir: "features"
   input_size: 4
 model:
-  epochs: 30
-  lr: 1e-3
+  epochs: 60 #25
+  lr: 1e-3 #1e-2
 general:
-  seed: 42
+  seed: 10 #5, 10
   num_classes: 6
 logging: 
   save_path: ./models_checkpoints

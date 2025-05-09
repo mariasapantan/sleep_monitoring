@@ -2,11 +2,13 @@ import random
 from typing import List, Tuple
 
 import numpy as np
+import logging
 import torch
 import torch.nn as nn
 from omegaconf import DictConfig
 from sklearn.metrics import accuracy_score, classification_report
 from torch.utils.data import DataLoader, random_split
+from sklearn.model_selection import train_test_split
 
 from constants import ConstantsModel
 from dataloader import SleepFeatureDataset
@@ -19,28 +21,6 @@ def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-
-
-def prepare_data(cfg: DictConfig) -> Tuple[DataLoader, DataLoader]:
-    """Load dataset and return train/val DataLoaders."""
-    dataset = SleepFeatureDataset(cfg.data_generator.feature_dir)
-    train_size = int(0.9 * len(dataset))
-    val_size = len(dataset) - train_size
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-
-    train_loader = DataLoader(train_dataset, batch_size=ConstantsModel.BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=1)
-
-    return train_loader, val_loader
-
-
-def initialize_model(cfg: DictConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
-    """Create the model, loss function, and optimizer."""
-    model = SleepLSTM(cfg.data_generator.input_size).to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.model.lr)
-    return model, criterion, optimizer
-
 
 def train_one_epoch(model: nn.Module,
     train_loader: DataLoader,
@@ -69,7 +49,6 @@ def train_one_epoch(model: nn.Module,
 
     return total_loss
 
-
 def evaluate_model(model: nn.Module,
     val_loader: DataLoader,
     device: torch.device,
@@ -92,7 +71,6 @@ def evaluate_model(model: nn.Module,
     acc = accuracy_score(all_labels, all_preds)
     return report, acc
 
-
 def run_training(cfg: DictConfig) -> None:
     """
     Run the full training and evaluation loop using config from Hydra.
@@ -101,10 +79,22 @@ def run_training(cfg: DictConfig) -> None:
         cfg: Hydra configuration object.
     """
     set_seed(cfg.general.seed)
-    train_loader, val_loader = prepare_data(cfg)
-    model, criterion, optimizer = initialize_model(cfg)
 
-    print(f"Training on device: {device}")
+    dataset = SleepFeatureDataset(cfg.data_generator.feature_dir)
+
+    train_dataset, val_dataset = train_test_split(
+        dataset,
+        test_size=0.1,
+        random_state=cfg.general.seed,
+        shuffle=True,
+    )
+
+    train_loader = DataLoader(train_dataset, batch_size=ConstantsModel.BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=1)
+
+    model = SleepLSTM(cfg.data_generator.input_size).to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.model.lr)
 
     for epoch in range(cfg.model.epochs):
         loss = train_one_epoch(model, train_loader, criterion, optimizer, device, cfg.general.num_classes)
