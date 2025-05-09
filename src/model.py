@@ -1,41 +1,24 @@
 import torch
 import torch.nn as nn
+from torch import Tensor
 
+class SleepLSTM(nn.Module):
+    """
+    A multi-layer LSTM model for sequence classification, specifically designed
+    for sleep stage prediction tasks from time series input features.
 
-class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len=5000):
-        super().__init__()
-        pe = torch.zeros(max_len, d_model)  # [seq_len, d_model]
-        position = torch.arange(0, max_len).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2) * (-torch.log(torch.tensor(10000.0)) / d_model))
+    Attributes:
+        lstm (nn.LSTM): The LSTM layer that processes sequential input data.
+        classifier (nn.Linear): A linear layer that maps LSTM outputs to class logits.
+    """
+    
+    def __init__(self, input_size: int, hidden_size: int = 128, num_layers: int = 2, num_classes: int = 6, dropout: float = 0.3) -> None:
+        super(SleepLSTM, self).__init__()
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=dropout)
+        self.classifier = nn.Linear(hidden_size, num_classes)
 
-        pe[:, 0::2] = torch.sin(position.float() * div_term)
-        pe[:, 1::2] = torch.cos(position.float() * div_term)
+    def forward(self, x: Tensor) -> Tensor:
+        lstm_out, _ = self.lstm(x)
+        output = self.classifier(lstm_out)
 
-        self.pe = pe.unsqueeze(0)  # [1, seq_len, d_model]
-
-    def forward(self, x):
-        x = x + self.pe[:, :x.size(1)].to(x.device)
-        return x
-
-
-class SleepTransformer(nn.Module):
-    def __init__(self, input_dim=5, model_dim=64, num_heads=4, num_layers=2, num_classes=5, dropout=0.1):
-        super().__init__()
-        self.input_proj = nn.Linear(input_dim, model_dim)
-        self.pos_enc = PositionalEncoding(model_dim)
-
-        encoder_layer = nn.TransformerEncoderLayer(d_model=model_dim, nhead=num_heads, dropout=dropout, batch_first=True)
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
-
-        self.classifier = nn.Linear(model_dim, num_classes)
-
-    def forward(self, x):
-        """
-        x: [batch_size, seq_len, input_dim]
-        """
-        x = self.input_proj(x)               # [B, T, model_dim]
-        x = self.pos_enc(x)                  # [B, T, model_dim]
-        x = self.transformer(x)              # [B, T, model_dim]
-        logits = self.classifier(x)          # [B, T, num_classes]
-        return logits
+        return output
