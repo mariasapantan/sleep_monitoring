@@ -1,60 +1,57 @@
+import logging
 import os
-import glob
+
+from typing import List, Tuple
+
+import numpy as np
 import torch
-import pandas as pd
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 
+from constants import ConstantsDataLoader
 
-class SleepDataset(Dataset):
-    def __init__(self, data_dir: str):
-        self.data_dir = data_dir
-        self.subject_ids = self._get_valid_subject_ids()
+logging.basicConfig(level=logging.INFO)
 
-    def _get_valid_subject_ids(self):
-        hr_ids = {f.split("_")[0] for f in os.listdir(os.path.join(self.data_dir, "heart_rate"))}
-        motion_ids = {f.split("_")[0] for f in os.listdir(os.path.join(self.data_dir, "motion"))}
-        steps_ids = {f.split("_")[0] for f in os.listdir(os.path.join(self.data_dir, "steps"))}
-        labels_ids = {f.split("_")[0] for f in os.listdir(os.path.join(self.data_dir, "labels"))}
+class SleepFeatureDataset(Dataset):
+    """
+    A custom PyTorch Dataset for loading already processed features and labels
+    by sleep_classifiers/source/preprocessing/preprocessing_runner.py script
 
-        common_ids = sorted(list(hr_ids & motion_ids & steps_ids & labels_ids))
-        print(f"Found {len(common_ids)} subjects with complete data")
-        return common_ids
+    Each sample includes time-series features (count, cosine, HR, time)
+    and associated label sequences, along with the subject ID.
+    """
+    
+    def __init__(self, feature_dir: str):
+        self.feature_dir = feature_dir
+        self.subject_ids = self._get_subject_ids()
+ 
+    def _get_subject_ids(self) -> List[str]:
+        return sorted([f.split('_')[0] for f in os.listdir(self.feature_dir) if f.endswith(ConstantsDataLoader.label_endfile_name)], key=int)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.subject_ids)
 
-    def __getitem__(self, idx):
-        subject_id = self.subject_ids[idx]
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, str]:
+        sid = self.subject_ids[idx]
 
         try:
-            hr_file = os.path.join(self.data_dir, "heart_rate", f"{subject_id}_heartrate.txt")
-            motion_file = os.path.join(self.data_dir, "motion", f"{subject_id}_acceleration.txt")
-            steps_file = os.path.join(self.data_dir, "steps", f"{subject_id}_steps.txt")
-            label_file = os.path.join(self.data_dir, "labels", f"{subject_id}_labeled_sleep.txt")
+            count_feat = np.loadtxt(os.path.join(self.feature_dir, f"{sid}" + ConstantsDataLoader.cf_endfile_name), ndmin=2)
+            cosine_feat = np.loadtxt(os.path.join(self.feature_dir, f"{sid}" + ConstantsDataLoader.cos_endfile_name), ndmin=2)
+            hr_feat = np.loadtxt(os.path.join(self.feature_dir, f"{sid}" + ConstantsDataLoader.hr_endfile_name), ndmin=2)
+            time_feat = np.loadtxt(os.path.join(self.feature_dir, f"{sid}"  + ConstantsDataLoader.t_endfile_name), ndmin=2)
+            labels = np.loadtxt(os.path.join(self.feature_dir, f"{sid}" + ConstantsDataLoader.label_endfile_name), dtype=int)
 
-            hr_df = pd.read_csv(hr_file, sep=",", header=None, names=["time", "hr"])
-            motion_df = pd.read_csv(motion_file, sep=" ", header=None, names=["time", "x", "y", "z"])
-            steps_df = pd.read_csv(steps_file, sep=",", header=None, names=["time", "steps"])
-            label_df = pd.read_csv(label_file, sep=" ", header=None, names=["time", "label"])
+            features = np.concatenate([
+                count_feat.reshape(-1, 1),
+                cosine_feat.reshape(-1, 1),
+                hr_feat,
+                time_feat.reshape(-1, 1)
+            ], axis=1)
 
-            # Round timestamps to seconds
-            for df in [hr_df, motion_df, steps_df, label_df]:
-                df["time"] = df["time"].round().astype(int)
+            features = torch.tensor(features, dtype=torch.float32)
+            labels = torch.tensor(labels, dtype=torch.long)
 
-            df = label_df.merge(hr_df, on="time", how="inner") \
-                         .merge(motion_df, on="time", how="inner") \
-                         .merge(steps_df, on="time", how="inner")
-
-            df = df[df["label"] != -1].reset_index(drop=True)
-
-            if len(df) == 0:
-                raise ValueError(f"No valid label data for subject {subject_id}")
-
-            features = torch.tensor(df[["hr", "x", "y", "z", "steps"]].values, dtype=torch.float32)
-            labels = torch.tensor(df["label"].values, dtype=torch.long)
-
-            return features, labels, subject_id
+            return features, labels, sid
         except Exception as e:
-            print(f"Skipping subject {subject_id}: {e}")
+            logging.warning(f"Skipping subject {sid} due to error: {e}")
             return self.__getitem__((idx + 1) % len(self))
-
+        
