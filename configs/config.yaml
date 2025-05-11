@@ -5,7 +5,7 @@ data_preprocess:
   input_dir: "data"
   output_dir: "features_new/"
 model:
-  epochs: 60 #25
+  epochs: 60  #60 #25
   lr: 1e-3 #1e-2
 general:
   seed: 10 #5, 10
