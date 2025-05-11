@@ -1,17 +1,37 @@
 import os
+from glob import glob
+from math import cos, pi
+from typing import List, Tuple
+
+import hydra
 import numpy as np
 import pandas as pd
-from glob import glob
-from scipy.stats import entropy
-from math import cos, pi
-from scipy.signal import butter, filtfilt
-import hydra
+from numpy.typing import NDArray
 from omegaconf import DictConfig
+from scipy.signal import butter, filtfilt
+from scipy.stats import entropy
 
-from constants import ConstantsPreprocess 
-from utils import max2epochs, get_interval, get_interval_labels, get_valid_epoch_dictionary, build_cosine, build_time, build_count_features, build_hr_features
+from constants import ConstantsPreprocess
+from utils import (build_cosine, build_count_features, build_hr_features,
+                   build_time, get_interval, get_interval_labels,
+                   get_valid_epoch_dictionary, max2epochs)
 
-def build_activity_counts(data):
+
+def build_activity_counts(data: pd.DataFrame) -> NDArray[np.float64]:
+    """
+    Processes raw accelerometer data to compute activity counts using bandpass filtering,
+    binning, and epoch-wise aggregation.
+
+    Args:
+        data (pd.DataFrame): Input DataFrame containing:
+            - `ConstantsPreprocess.COL_TIME`: Timestamps in seconds.
+            - `ConstantsPreprocess.COL_Z`: Z-axis acceleration values.
+
+    Returns:
+        NDArray[np.float64]: A 2D NumPy array of shape (N, 2) where each row contains:
+            - Time (centered timestamp of each epoch).
+            - Computed activity count for that epoch.
+    """
     fs = 50
     time = np.arange(np.amin(data[ConstantsPreprocess.COL_TIME]), np.amax(data[ConstantsPreprocess.COL_TIME]), 1.0 / fs)
     z_data = np.interp(time, data[ConstantsPreprocess.COL_TIME], data[ConstantsPreprocess.COL_Z])
@@ -43,7 +63,23 @@ def build_activity_counts(data):
     output = np.hstack((time_counts, counts))
     return output
 
-def preclean_labels(data):
+def preclean_labels(data: pd.DataFrame) -> List[Tuple[float, int]]:
+    """
+    Constructs a list of epoch tuples containing start times and corresponding epoch indices.
+
+    Each row in the input DataFrame is assumed to represent a sequential sleep epoch of fixed duration.
+    The function computes the timestamp for the start of each epoch based on the first timestamp
+    and a constant epoch duration.
+
+    Args:
+        data (pd.DataFrame): DataFrame containing a time column named `ConstantsPreprocess.COL_TIME`,
+            with the first row representing the start of the first epoch.
+
+    Returns:
+        List[Tuple[float, int]]: A list of tuples where each tuple contains:
+            - The start timestamp (in seconds) of the epoch.
+            - The epoch index (1-based).
+    """
     start_time = data.iloc[0][ConstantsPreprocess.COL_TIME]
     epochs = [
         (start_time + i * ConstantsPreprocess.EPOCH_DURATION, i + 1)
@@ -51,16 +87,73 @@ def preclean_labels(data):
     ]
     return epochs
 
-def filter_by_time(df, start_time, end_time):
+def filter_by_time(df: pd.DataFrame, start_time: float, end_time: float) -> pd.DataFrame:
+    """
+    Filters a DataFrame to include only rows where the time column is within a specified interval.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame containing a time column identified by `ConstantsPreprocess.COL_TIME`.
+        start_time (float): Start of the time interval (in seconds).
+        end_time (float): End of the time interval (in seconds).
+
+    Returns:
+        pd.DataFrame: A new DataFrame containing only rows with timestamps between `start_time` and `end_time`,
+                      with the index reset.
+    """
     return df[(df[ConstantsPreprocess.COL_TIME] > start_time) & (df[ConstantsPreprocess.COL_TIME] < end_time)].reset_index(drop=True)
 
-def build_labels(array, valid_epochs):
+def build_labels(
+    array: pd.DataFrame,
+    valid_epochs: List[Tuple[float, ...]]
+) -> NDArray[np.float64]:
+    """
+    Builds a label array by interpolating label values at the timestamps of valid epochs.
+
+    Args:
+        array (pd.DataFrame): A DataFrame containing:
+            - `ConstantsPreprocess.COL_TIME`: Timestamps in seconds.
+            - `ConstantsPreprocess.COL_LABEL`: Corresponding label values (numeric).
+        valid_epochs (List[Tuple[float, ...]]): A list of tuples where the first element of each tuple
+            is the timestamp for which to interpolate a label.
+
+    Returns:
+        NDArray[np.float64]: A NumPy array of interpolated label values for each epoch.
+    """
     return np.array([
         np.interp(epoch[0], array[ConstantsPreprocess.COL_TIME], array[ConstantsPreprocess.COL_LABEL])
         for epoch in valid_epochs
     ])
 
-def preprocess_subject(subject_id, data_dir):
+def preprocess_subject(subject_id: str, data_dir: str) -> Tuple[
+    np.ndarray,  # feature_labels
+    np.ndarray,  # cosine_features
+    np.ndarray,  # time_feature
+    np.ndarray,  # count_features
+    np.ndarray   # hr_feature
+]:
+    """
+    Preprocesses data for a single subject by loading, aligning, and extracting time-series features.
+
+    This function performs the following steps:
+    1. Loads heart rate, motion, and label data from text files.
+    2. Cleans, sorts, and time-aligns the data.
+    3. Interpolates and filters each data stream to keep only valid overlapping segments.
+    4. Constructs a list of valid epochs with matching data across all sources.
+    5. Extracts multiple feature types: label targets, cosine-based circadian features,
+       time-since-start features, motion-based activity count features, and heart rate variability.
+
+    Args:
+        subject_id (str): Unique identifier of the subject (used to locate files).
+        data_dir (str): Base directory path containing the subfolders `heart_rate`, `motion`, and `labels`.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+            - feature_labels: Array of interpolated ground truth sleep stage labels.
+            - cosine_features: Array of cosine-based circadian rhythm features.
+            - time_feature: Array of time-in-hours features (relative to the first epoch).
+            - count_features: Array of activity count features from accelerometer data.
+            - hr_feature: Array of heart rate variability features (standard deviation per epoch).
+    """
     print("Processing subject ", subject_id)
 
     hr = pd.read_csv(f"{data_dir}/heart_rate/{subject_id}_heartrate.txt", sep=",", 

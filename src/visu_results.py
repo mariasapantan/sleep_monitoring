@@ -1,6 +1,7 @@
-from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.metrics import auc, roc_curve
+
 
 def plot_roc_rem_vs_nrem(y_true: np.ndarray, y_probs: np.ndarray) -> None:
     """
@@ -38,6 +39,11 @@ def plot_roc_rem_vs_nrem(y_true: np.ndarray, y_probs: np.ndarray) -> None:
     plt.close()
 
 def plot_loss_curve(losses: list) -> None:
+    """Plot loss function during the training
+
+    Args:
+        losses (list): _description_
+    """
     
     plt.figure(figsize=(8, 5))
     plt.plot(range(1, len(losses) + 1), losses, marker='o', label='Training Loss')

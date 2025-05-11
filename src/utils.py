@@ -1,8 +1,23 @@
+from typing import List, Tuple, Union
+
 import numpy as np
+import pandas as pd
+from numpy.typing import NDArray
 
 from constants import ConstantsPreprocess
 
-def max2epochs(data, fs, epoch):
+
+def max2epochs(data: NDArray[np.float64], fs: int, epoch: int) -> NDArray[np.float64]:
+    """_summary_
+    Processes a 1D signal array by computing the maximum absolute value in fixed-duration epochs.
+    Args:
+        data (NDArray[np.float64]): Input signal data (can be 1D or flattenable to 1D).
+        fs (int): Sampling frequency
+        epoch (int): Epoch length in seconds for aggregation.
+
+    Returns:
+        NDArray[np.float64]: 1D array of summed max values per epoch.
+    """
     data = data.flatten()
 
     seconds = int(np.floor(np.shape(data)[0] / fs))
@@ -23,18 +38,31 @@ def max2epochs(data, fs, epoch):
 
     return epoch_data
     
-def get_interval_labels(data):
-    min_timestamp = 1e15
-    max_timestamp = -1
-    for i, row in data.iterrows():
-        if row['epochs'][0] < min_timestamp:
-            min_timestamp = row['epochs'][0]
-        if row['epochs'][0] > max_timestamp:
-            max_timestamp = row['epochs'][0]
-  
+def get_interval_labels(data: pd.DataFrame) -> Tuple[float, float]:
+    """
+    Compute the minimum and maximum timestamp from the first value of the 'epochs' list in each row.
+
+    Args:
+        data (pd.DataFrame): DataFrame where each row contains a list-like object in the 'epochs' column.
+
+    Returns:
+        Tuple[float, float]: The minimum and maximum epoch timestamps.
+    """
+    first_epochs = data['epochs'].apply(lambda x: x[0] if x else None).dropna()
+    min_timestamp = first_epochs.min()
+    max_timestamp = first_epochs.max()
     return min_timestamp, max_timestamp
 
-def get_interval(data):
+def get_interval(data: NDArray[np.float64]) -> Tuple[float, float]:
+    """
+    Compute the minimum and maximum values in a NumPy array.
+
+    Args:
+        data (NDArray[np.float64]): A NumPy array of floating-point numbers.
+
+    Returns:
+        Tuple[float, float]: A tuple containing the minimum and maximum values in the array.
+    """
     return np.amin(data), np.amax(data)
 
 def get_valid_epoch_dictionary(timestamps, start_time):
@@ -47,27 +75,70 @@ def get_valid_epoch_dictionary(timestamps, start_time):
 
     return epoch_dictionary
 
-def cosine_proxy(time):
+def cosine_proxy(time: Union[float, NDArray[np.float64]]) -> Union[float, NDArray[np.float64]]:
+    """
+    Computes a cosine-based proxy for sleep drive, shifted by 5 hours.
+
+    Args:
+        time (float or NDArray[np.float64]): Time in seconds. Can be a scalar or a NumPy array.
+
+    Returns:
+        float or NDArray[np.float64]: The computed cosine proxy value(s).
+    """
     sleep_drive_cosine_shift = 5
     return -1 * np.cos((time - sleep_drive_cosine_shift * 3600) *2 * np.pi / (3600*24))
 
-def build_cosine(valid_epochs):
+def build_cosine(valid_epochs: List[Tuple[float, ...]]) -> NDArray[np.float64]:
+    """
+    Builds a NumPy array of cosine proxy values based on the first timestamp.
+
+    Args:
+        valid_epochs (List[Tuple[float, ...]]): A list of tuples, each containing a timestamp
+            as the first element (e.g., epochs with format like (timestamp, ...)).
+
+    Returns:
+        NDArray[np.float64]: A NumPy array of cosine proxy values aligned to the first timestamp.
+    """
     first_timestamp = valid_epochs[0][0]
     return np.array([
         cosine_proxy(epoch[0] - first_timestamp)
         for epoch in valid_epochs
     ])
     
-def build_time(valid_epochs):
+def build_time(valid_epochs: List[Tuple[float, ...]]) -> NDArray[np.float64]:
+    """
+    Builds a NumPy array of time features in hours, relative to the first timestamp.
+
+    Args:
+        valid_epochs (List[Tuple[float, ...]]): A list of tuples where each tuple's first element
+            is a timestamp in seconds (e.g., [(timestamp1, ...), (timestamp2, ...), ...]).
+
+    Returns:
+        NDArray[np.float64]: A NumPy array of time values in hours, shifted so that the first timestamp is 0.
+    """
     features = []
     first_timestamp = valid_epochs[0][0]
     for epoch in valid_epochs:
         value = epoch[0] - first_timestamp
-        value = value / 3600.0  # Changing units to hours improves performance
+        value = value / 3600.0  
         features.append(value)
     return np.array(features)
     
-def interpolate(activity_count_collection):
+def interpolate(activity_count_collection: NDArray[np.float64]) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """
+    Interpolates activity count data to generate uniformly spaced timestamps with corresponding values.
+
+    Args:
+        activity_count_collection (NDArray[np.float64]):
+            A 2D NumPy array of shape (2, N) or (N, 2) containing:
+              - timestamps in seconds (first row or column)
+              - activity counts (second row or column)
+
+    Returns:
+        Tuple[NDArray[np.float64], NDArray[np.float64]]:
+            - interpolated_timestamps: Linearly spaced timestamps at 1-second resolution.
+            - interpolated_counts: Interpolated activity counts at those timestamps.
+    """
     activity_count_collection = activity_count_collection.T
     timestamps = np.round(activity_count_collection[0].flatten(), 6)
     np.set_printoptions(suppress=True, precision=6)
@@ -77,7 +148,22 @@ def interpolate(activity_count_collection):
     interpolated_counts = np.interp(interpolated_timestamps, timestamps, activity_count_values)
     return interpolated_timestamps, interpolated_counts
 
-def build_count_features(count_features, valid_epochs):
+def build_count_features(
+    count_features: NDArray[np.float64],
+    valid_epochs: List[Tuple[float, ...]]
+) -> List[float]:
+    """
+    Builds a list of extracted activity count features for each valid epoch.
+
+    Args:
+        count_features (NDArray[np.float64]): A 2D NumPy array of shape (2, N) or (N, 2),
+            where one axis contains timestamps and the other contains corresponding activity counts.
+        valid_epochs (List[Tuple[float, ...]]): A list of tuples, each containing at least a timestamp
+            as the first element (used to extract time windows around each epoch).
+
+    Returns:
+        List[float]: A list of extracted features (one per epoch) based on activity count data.
+    """
 
     feature_count =[]
     interpolated_timestamps, interpolated_counts = interpolate(count_features)
@@ -90,7 +176,23 @@ def build_count_features(count_features, valid_epochs):
         
     return feature_count
 
-def get_window(timestamps, epoch, window_size):
+def get_window(
+    timestamps: NDArray[np.float64],
+    epoch: Tuple[float, ...],
+    window_size: float
+) -> Union[int, NDArray[np.int_]]:
+    """
+    Finds the index or indices of timestamps within a specified time window around a given epoch.
+
+    Args:
+        timestamps (NDArray[np.float64]): 1D or 2D NumPy array of timestamps (in seconds).
+        epoch (Tuple[float, ...]): A tuple where the first element is the epoch's central timestamp.
+        window_size (float): The size of the time window in seconds, extending before and after the epoch.
+
+    Returns:
+        Union[int, NDArray[np.int_]]: Index or indices of the timestamps that fall within the specified window.
+                                      If only one index is found, it returns an int.
+    """
     start_time = epoch[0]- window_size
     end_time = epoch[0] + 30 + window_size
     timestamps_ravel = timestamps.ravel()
@@ -98,11 +200,30 @@ def get_window(timestamps, epoch, window_size):
                                         timestamps.shape)
     return indices_in_range[0][0]
 
-def get_feature(count_values):
+def get_feature(count_values: NDArray[np.float64]) -> NDArray[np.float64]:
+    """
+    Computes a feature representation from activity count values using Gaussian smoothing.
+
+    Args:
+        count_values (NDArray[np.float64]): A 1D array of raw activity count values for an epoch or time window.
+
+    Returns:
+        NDArray[np.float64]: A 1D array containing the smoothed feature values.
+    """
     convolution = smooth_gauss(count_values.flatten(), np.shape(count_values.flatten())[0])
     return np.array([convolution])
 
-def smooth_gauss(y, box_pts):
+def smooth_gauss(y: NDArray[np.float64], box_pts: int) -> float:
+    """
+    Applies Gaussian-weighted smoothing to a 1D array of values using a fixed-width Gaussian kernel.
+
+    Args:
+        y (NDArray[np.float64]): Input 1D array of values to smooth. Must be at least `box_pts` in length.
+        box_pts (int): Number of points in the smoothing window (kernel size).
+
+    Returns:
+        float: The smoothed value computed by applying the Gaussian kernel over the input values.
+    """
     box = np.ones(box_pts) / box_pts
     mu = int(box_pts / 2.0)
     sigma = 50  # seconds
@@ -117,7 +238,23 @@ def smooth_gauss(y, box_pts):
 
     return sum_value
 
-def build_hr_features(hr, valid_epochs):
+def build_hr_features(
+    hr: NDArray[np.float64],
+    valid_epochs: List[Tuple[float, ...]]
+) -> NDArray[np.float64]:
+    """
+    Builds heart rate variability features for each valid epoch by computing the standard deviation
+    of normalized heart rate values within a defined time window.
+
+    Args:
+        hr (NDArray[np.float64]): A 2D NumPy array with heart rate data, shaped (2, N) or (N, 2),
+            where one axis contains timestamps and the other contains heart rate values.
+        valid_epochs (List[Tuple[float, ...]]): A list of tuples where the first element is the
+            timestamp of the epoch (in seconds).
+
+    Returns:
+        NDArray[np.float64]: A 1D NumPy array of standard deviation features (one per epoch).
+    """
     heart_rate_features = []
     interpolated_timestamps, interpolated_hr = interpolate_and_normalize(hr)
     
@@ -131,7 +268,25 @@ def build_hr_features(hr, valid_epochs):
 
     return np.array(heart_rate_features)
 
-def interpolate_and_normalize(heart_rate_collection):
+def interpolate_and_normalize(heart_rate_collection: pd.DataFrame) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """
+    Interpolates and normalizes heart rate data to produce uniformly spaced, scaled values.
+
+    The function performs the following steps:
+    1. Extracts timestamps and heart rate values from the input DataFrame.
+    2. Interpolates heart rate values to a uniform 1-second resolution.
+    3. Applies a Difference of Gaussians (DoG) convolution to smooth the data.
+    4. Normalizes the result using the 90th percentile of the absolute values.
+
+    Args:
+        heart_rate_collection (pd.DataFrame): DataFrame containing time and heart rate values.
+            Expects columns `ConstantsPreprocess.COL_TIME` and `ConstantsPreprocess.COL_HR`.
+
+    Returns:
+        Tuple[NDArray[np.float64], NDArray[np.float64]]:
+            - Interpolated timestamps at 1-second resolution.
+            - Normalized and convolved heart rate values.
+    """
     timestamps = heart_rate_collection[ConstantsPreprocess.COL_TIME].to_numpy().flatten()
     heart_rate_values = heart_rate_collection[ConstantsPreprocess.COL_HR].to_numpy().flatten()
     interpolated_timestamps = np.arange(np.amin(timestamps),
@@ -145,7 +300,21 @@ def interpolate_and_normalize(heart_rate_collection):
 
     return interpolated_timestamps, interpolated_hr
 
-def convolve_with_dog(y, box_pts):
+def convolve_with_dog(y: NDArray[np.float64], box_pts: int) -> NDArray[np.float64]:
+    """
+    Applies a Difference of Gaussians (DoG) convolution to the input signal.
+
+    The DoG filter is constructed by subtracting a wide Gaussian (sigma2) from a narrow one (sigma1),
+    optionally scaled, to highlight transitions in the signal. The signal is padded using flipped
+    boundary values before convolution to preserve edge information.
+
+    Args:
+        y (NDArray[np.float64]): 1D input signal array.
+        box_pts (int): Number of points in the convolution kernel (window size).
+
+    Returns:
+        NDArray[np.float64]: The smoothed signal after applying DoG convolution.
+    """
     y = y - np.mean(y)
     box = np.ones(box_pts) / box_pts
 
