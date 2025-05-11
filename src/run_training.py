@@ -1,9 +1,7 @@
 import hydra
 from omegaconf import DictConfig
-import torch
 
-
-from train import run_training 
+from train import SleepStageTrainer, set_seed
 
 
 @hydra.main(config_path="../configs", config_name="config_hydra", version_base=None)
@@ -14,9 +12,10 @@ def main(cfg: DictConfig):
     Args:
         cfg (DictConfig): Configuration object loaded from YAML file.
     """
-
-    # Run training with Hydra config
-    run_training(cfg)
+    set_seed(cfg.general.seed)
+    trainer = SleepStageTrainer(cfg)
+    trainer.training()
+    trainer.validate()
 
 
 if __name__ == "__main__":

@@ -12,3 +12,4 @@ general:
   num_classes: 6
 logging: 
   save_path: ./models_checkpoints
+ckp_path: ./models_checkpoints/trained_sleep_lstm.pth #path to ckpt for resume or null

@@ -1,0 +1,12 @@
+__pycache__/
+*/__pycache__/
+*/*/__pycache__/
+outputs/features/
+outputs/cropped/
+outputs/figures/
+data
+.idea/
+.venv
+features/
+features_new/
+features_old/
