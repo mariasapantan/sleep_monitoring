@@ -13,7 +13,12 @@ You need to download the data before using this project.
 
 Clone the repository:
 
-<pre>git clone https://github.com/mariasapantan/sleep_monitoring.git cd sleep_monitoring python3 -m venv .venv pip install poetry source .venv/bin/activate</pre>
+<pre>git clone https://github.com/mariasapantan/sleep_monitoring.git 
+cd sleep_monitoring 
+python3 -m venv .venv
+source .venv/bin/activate
+pip install poetry 
+</pre>
 
 After this, you need to install all the project dependecies/requirements using poetry:
 

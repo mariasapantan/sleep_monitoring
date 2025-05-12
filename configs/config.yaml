@@ -1,3 +1,4 @@
+run_mode: train # train, validate or both
 data_generator:
   feature_dir: "features"
   input_size: 4
