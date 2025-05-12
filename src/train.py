@@ -66,7 +66,8 @@ class SleepStageTrainer:
             self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
             self.current_epoch = checkpoint.get("epoch", 0)
-        print(f"Resumed from epoch {self.current_epoch}")
+            # print("self.current_epoch ", self.current_epoch)
+            print(f"Resumed from epoch {self.current_epoch}")
 
     def _prepare_data(self) -> Tuple[DataLoader, DataLoader]:
         """
@@ -89,6 +90,7 @@ class SleepStageTrainer:
         """
         Train the LSTM model using training data and save the trained model.
         """
+        last_epoch = self.current_epoch
         for epoch in range(self.current_epoch, self.cfg.model.epochs):
             self.model.train()
             total_loss = 0.0
@@ -106,13 +108,14 @@ class SleepStageTrainer:
             print(
                 f"Epoch [{epoch + 1}/{self.cfg.model.epochs}], Loss: {total_loss:.4f}"
             )
+            last_epoch = epoch + 1  # <-- update at end of each loop
         os.makedirs(self.cfg.logging.save_path, exist_ok=True)
         torch.save(
             {
                 "model_state_dict": self.model.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "scheduler_state_dict": self.scheduler.state_dict(),
-                "epoch": self.current_epoch,
+                "epoch": last_epoch,
             },
             os.path.join(self.cfg.logging.save_path, "trained_sleep_lstm.pth"),
         )
