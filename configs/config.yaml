@@ -1,4 +1,4 @@
-run_mode: train # train, validate or both
+run_mode: both # train, validate or both
 data_generator:
   feature_dir: "features"
   input_size: 4
@@ -9,7 +9,7 @@ model:
   epochs: 80
   lr: 1e-3
 general:
-  seed: 10
+  seed: 13 #10, 90, 510, 999, 13
 logging: 
   save_path: ./models_checkpoints
 ckp_path: ./models_checkpoints/trained_sleep_lstm.pth #path to ckpt for resume or null

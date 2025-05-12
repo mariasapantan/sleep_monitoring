@@ -8,12 +8,20 @@ This code is a modified version of [[1]](https://academic.oup.com/sleep/article/
 We used the dataset collected using Apple Watch from here: https://physionet.org/content/sleep-accel/1.0.0/ .
 You need to download the data before using this project.
 
+# Info
+
+The setup can be done with `poetry` or with `Docker`.
+If you choose `poetry`, you follow `Installation`, `Data preprocessing` and `Model training` steps. If you're using docker, follow Installation then go directly do `Docker` chapter.
 
 # Installation
 
 Clone the repository:
 
-<pre>git clone https://github.com/mariasapantan/sleep_monitoring.git 
+<pre>git clone https://github.com/mariasapantan/sleep_monitoring.git </pre>
+
+Poetry:
+
+<pre>
 cd sleep_monitoring 
 python3 -m venv .venv
 source .venv/bin/activate
@@ -22,7 +30,15 @@ pip install poetry
 
 After this, you need to install all the project dependecies/requirements using poetry:
 
-<pre>bash poetry install</pre>
+<pre>poetry install</pre>
+
+
+Docker:
+
+To build the Docker image from the provided `Dockerfile`, run:
+
+<pre> sudo docker build -t train . </pre>
+This command creates a Docker image named train using the current directory as context.
 
 
 # Data preprocessing
@@ -62,16 +78,27 @@ For training only, the run_mode has to be 'train':
 
 or it is possible to specify this directy in the command:
 
-<pre>bash python src/main.py run_mode=train </pre> 
+<pre>python src/main.py run_mode=train </pre> 
 
 
 For validation/inference only, the run_mode has to be 'validate':
 
-<pre>bash python src/main.py </pre>
+<pre>python src/main.py </pre>
 
 or it is possible to specify this directy in the command:
 
-<pre>bash python src/main.py run_mode=validate </pre> 
+<pre>python src/main.py run_mode=validate </pre> 
+
+
+To run the container and mount local directories for data and logs, use:
+
+# Docker run
+<pre> sudo docker run \
+  -v /path/to/local/data:/app/data \
+  -v /path/to/local/logs:/app/logs \
+  train </pre>
+
+Replace /path/to/local/data and /path/to/local/logs with the absolute paths on your machine.
 
 In the config.yaml file, there is a seed value, only for keeping the random split for training&validation under control, when only the validation part is used. 
 
