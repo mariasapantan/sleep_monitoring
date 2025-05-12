@@ -9,7 +9,7 @@ We used the dataset collected using Apple Watch from here: https://physionet.org
 You need to download the data before using this project.
 
 
-# Intallation
+# Installation
 
 Clone the repository:
 
