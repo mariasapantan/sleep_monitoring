@@ -11,7 +11,7 @@ You need to download the data before using this project.
 # Info
 
 The setup can be done with `poetry` or with `Docker`.
-If you choose `poetry`, you follow `Installation`, `Data preprocessing` and `Model training` steps. If you're using docker, follow Installation then go directly do `Docker` chapter.
+If you choose poetry, you follow `Installation`, `Data preprocessing` and `Model training` steps. If you're using docker, follow Installation then go directly do `Docker` chapter. If you choose Docker, training and inference will be performed together in the same container. If you choose Poetry, you can run them separately or together. 
 
 # Installation
 
