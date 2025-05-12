@@ -97,7 +97,7 @@ class SleepStageTrainer:
             for features, labels, _ in self.train_loader:
                 features, labels = features.to(self.device), labels.to(self.device)
                 self.optimizer.zero_grad()
-                outputs = self.model(features).view(-1, self.cfg.general.num_classes)
+                outputs = self.model(features).view(-1, ConstantsModel.NUM_CLASSES)
                 labels = labels.view(-1)
                 loss = self.criterion(outputs, labels)
                 loss.backward()

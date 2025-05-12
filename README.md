@@ -1,6 +1,6 @@
 # sleep_monitoring
 
-This code is a modified version of [1]. It's a sleep classifier with an LSTM network. The data preprocessing step follow the same steps as in the reference, but refactored. As results, it outputs the latest trained epoch, the ROC curve for REM vs NREM classes and a classification report with precision, f1-score and recall for every class.
+This code is a modified version of [[1]](https://academic.oup.com/sleep/article/42/12/zsz180/5549536). It's a sleep classifier with an LSTM network. The data preprocessing step follow the same steps as in the reference, but refactored. As results, it outputs the latest trained epoch, the ROC curve for REM vs NREM classes and a classification report with precision, f1-score and recall for every class.
 
 
 # Data
