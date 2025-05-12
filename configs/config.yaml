@@ -3,7 +3,7 @@ data_generator:
   input_size: 4
 data_preprocess:
   input_dir: "data"
-  output_dir: "features_new/"
+  output_dir: "features/"
 model:
   epochs: 60  #60 #25
   lr: 1e-3 #1e-2
